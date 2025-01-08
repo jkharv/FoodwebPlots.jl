@@ -1,0 +1,19 @@
+name = "FoodwebPlots"
+uuid = "7dc9db8c-3692-4617-a276-47618cd48976"
+authors = ["Jake Harvey <jacob.harvey@mail.mcgill.ca>"]
+version = "0.1.0"
+
+[deps]
+Colors = "5ae59095-9a9b-59fe-a467-6f913c188581"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+GraphMakie = "1ecd5474-83a3-4783-bb4f-06765db800d2"
+Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
+HigherOrderFoodwebs = "573a6084-d739-11ed-30ee-8d814a9e0f06"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+NetworkLayout = "46757867-2c16-5918-afeb-47bfcb05e46a"
+SpeciesInteractionNetworks = "49e116ef-912f-4766-9e56-896a49944adc"
+
+[compat]
+DataFrames = "1.7.0"
+SpeciesInteractionNetworks = "0.0.1"
