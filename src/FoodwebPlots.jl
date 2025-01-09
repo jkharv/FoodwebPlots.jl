@@ -7,6 +7,7 @@ using GraphMakie
 using NetworkLayout
 using Makie
 using Colors
+using Statistics
 
 include("network.jl")
 include("time_series.jl")
