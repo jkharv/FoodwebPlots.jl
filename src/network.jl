@@ -19,12 +19,8 @@ function Makie.plot!(fp::FoodwebPlot)
         src_index = findfirst(x -> x == object(i), species(fp.foodweb[]))
         dst_index = findfirst(x -> x == subject(i), species(fp.foodweb[]))
 
-<<<<<<< HEAD
         if isloop(i) & fp.draw_loops[]
-=======
-        if isloop(i) & fp.draw_loops
->>>>>>> ea00fadce97887f9dcb036c4a253d053ab89a1da
-
+            
             add_edge!(g, src_index, dst_index)
         else
 
