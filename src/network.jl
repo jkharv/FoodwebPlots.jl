@@ -2,7 +2,8 @@
 
     Attributes(
         node_weights = 1.0, # Scalar or Dict(String => Float64)
-        edge_weights = 1.0   # Scalar or Dict(Tuple(2, String) => Float64)
+        edge_weights = 1.0, # Scalar or Dict(Tuple(2, String) => Float64)
+        draw_loops = true
     )
 end
 
@@ -17,6 +18,14 @@ function Makie.plot!(fp::FoodwebPlot)
 
         src_index = findfirst(x -> x == object(i), species(fp.foodweb[]))
         dst_index = findfirst(x -> x == subject(i), species(fp.foodweb[]))
+
+        if isloop(i) & fp.draw_loops
+
+            add_edge!(g, src_index, dst_index)
+        else
+
+            continue # Break this iteration and move onto the next inteaction.
+        end
 
         add_edge!(g, src_index, dst_index)
     end
