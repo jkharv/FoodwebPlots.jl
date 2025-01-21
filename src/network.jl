@@ -22,12 +22,13 @@ function Makie.plot!(fp::FoodwebPlot)
         if isloop(i) & fp.draw_loops[]
             
             add_edge!(g, src_index, dst_index)
-        else
+        elseif isloop(i) & !fp.draw_loops[]
 
             continue # Break this iteration and move onto the next inteaction.
-        end
+        else
 
-        add_edge!(g, src_index, dst_index)
+            add_edge!(g, src_index, dst_index)
+        end
     end
 
     # Y position is set to the trophic level.
