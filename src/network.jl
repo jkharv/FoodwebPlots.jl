@@ -3,129 +3,131 @@
     Attributes(
         node_weights = 1.0, # Scalar or Dict(String => Float64)
         edge_weights = 1.0, # Scalar or Dict(Tuple(2, String) => Float64)
+        trophic_levels = false,
         draw_loops = true
     )
 end
 
 function Makie.plot!(fp::FoodwebPlot)
 
-    web_observable = fp.foodweb
-    S = richness(fp.foodweb[])
+    s = richness(fp.foodweb[]) 
+    g = SimpleDiGraph(s)
 
-    g = SimpleDiGraph(S)
+    edge_types = Union{
+        eltype(SpeciesInteractionNetworks.interactions(fp.foodweb[])),
+        eltype(edges(g))
+    }
 
-    for i in HigherOrderFoodwebs.interactions(fp.foodweb[])
+    conversion_dict = Dict{edge_types, edge_types}()
 
-        src_index = findfirst(x -> x == object(i), species(fp.foodweb[]))
-        dst_index = findfirst(x -> x == subject(i), species(fp.foodweb[]))
+    for i in SpeciesInteractionNetworks.interactions(fp.foodweb[])
 
-        if isloop(i) & fp.draw_loops[]
-            
-            add_edge!(g, src_index, dst_index)
-        elseif isloop(i) & !fp.draw_loops[]
+        if isloop(i) & !fp.draw_loops[]
 
-            continue # Break this iteration and move onto the next inteaction.
+            continue
         else
+            
+            src_index = findfirst(x -> x == object(i), species(fp.foodweb[]))
+            dst_index = findfirst(x -> x == subject(i), species(fp.foodweb[]))
+       
+            e = Edge(src_index, dst_index)  
 
-            add_edge!(g, src_index, dst_index)
+            conversion_dict[e] = i
+            conversion_dict[i] = e
+
+            add_edge!(g, e)
         end
     end
 
-    # Y position is set to the trophic level.
-    init_pos = trophicpositions(web_observable)
-    # Pin nodes y position but allow them to move along x.
-    pin = Dict(1:richness(web_observable[]) .=> Ref((false, true)));
+    initialpos, pin = nothing, nothing
+    if fp.trophic_levels[]
 
-    # Setup network layout alg with our new pinning requirements.
-    foodweb_layout = Spring(;initialpos = init_pos, pin = pin, seed = 1);
-   
-    spp_biomass = node_weight_vector(web_observable[], fp.node_weights[])
-    biomass_flux = edge_weight_vector(web_observable[], g, fp.edge_weights[])
+        initialpos, pin = trophic_pin(fp.foodweb)
+    else
 
-    edge_colors = map(x -> x > 10E-5 ? "black" : "lightgrey", biomass_flux)
-    node_colors = map(x -> x > 10E-5 ? "black" : "lightgrey", spp_biomass)
+        pin = [false for i in 1:s]
+        initialpos = [Point2(rand(2)) for i in 1:s]
+    end
 
-    edge_weights = map(x -> exp(x), biomass_flux)
-    node_weights = map(x -> 15 + exp(x), spp_biomass)
-    
-    graphplot!(fp, g;
+    edge_weight_vec = nothing
+    if !(typeof(fp.edge_weights[]) <: Number)
 
-        layout = foodweb_layout, 
-        node_size = node_weights,
-        edge_width = edge_weights,
-        arrow_size = 10*edge_weights,
-        edge_color = edge_colors,
-        # edge_attr = ,
-        # node_attr = ,
-        node_color = node_colors
+        edge_weight_vec = process_edge_weights(fp.edge_weights[], g, conversion_dict)
+    end
+
+    node_weight_vec = nothing
+    if !(typeof(fp.node_weights[]) <: Number)
+
+        node_weight_vec = process_node_weights(fp.node_weights[], g, fp.foodweb)
+    end
+
+    layout = Stress(;
+        pin, 
+        initialpos
     )
 
-    return fp
-end
-
-""" 
-Handles taking user input on edge weights and turning that into a Vector
-defining the width of every edge.  
-"""
-function edge_weight_vector(fw, g, weight_attr)
-
-    if weight_attr isa Dict
-
-        spp = species(fw)
-        weights = Vector{Float64}(undef, length(edges(g)))
-    
-        for (i, e) in enumerate(edges(g))
-  
-            sbj_sp = spp[src(e)]
-            obj_sp = spp[dst(e)]
-
-            weights[i] = weight_attr[(sbj_sp, obj_sp)].val
-        end 
-    
-        return weights
-    elseif weight_attr isa Number
-
-        weights = [weight_attr for i ∈ 1:length(edges(g))]
-        return weights
-    else
-        error("Improper format for edge weights")
-    end
+    graphplot!(fp, g; 
+        layout = layout,
+        edge_width = edge_weight_vec,
+        arrow_size = 3*edge_weight_vec,
+        node_size = node_weight_vec
+    )
 
 end
 
-"""
-Handles taking node weight input from the user and turning that into
-a vector of sizes for each node.
-"""
-function node_weight_vector(fw, weight_attr)
+function process_edge_weights(edge_weights, g, conversion_dict)
 
-    if weight_attr isa Dict
+    vec = Vector{Float32}()
 
-        spp = species(fw)
-        weights = map(x -> weight_attr[x], spp) 
-        return weights
-    elseif weight_attr isa Number
+    for e in edges(g)
 
-        weights = [weight_attr for i ∈ 1:length(species(fw))]
-        return weights
-    else
-        error("Improper format for node weights")
+        val = edge_weights[conversion_dict[e]]
+
+        append!(vec, val)
     end
+
+    return rescale(vec, 1, 8.0)
 end
 
-function trophicpositions(fw)
+function process_node_weights(node_weights, g, foodweb)
 
-    # Trophic level for all the species in the web.
-    tls = distancetobase.(Ref(fw[]), species(fw[]), Ref(mean))
+    vec = Vector{Float32}()
+    spp = species(foodweb[])
 
-    # Set initial node y positions to their trophic level.
-    spp_to_id = Dict(species(fw[]) .=> 1:richness(fw[]));
-    init_pos = Dict{Int64, Point2f}();
-
-    for spp ∈ species(fw[])
-
-        init_pos[spp_to_id[spp]] = Point2f(1.0, tls[spp_to_id[spp]])
+    for n in vertices(g)
+              
+        sp = spp[n]
+       
+        push!(vec, node_weights[sp])
     end
 
-    return init_pos
+    return rescale(vec, 10.0, 30.0)
+end
+
+function rescale(vec, a, b)
+
+    new_vec = log.(abs.(deepcopy(vec)))
+
+    min = minimum(new_vec)
+    max = maximum(new_vec)
+
+    for i in eachindex(new_vec)
+
+        new_vec[i] = a + (new_vec[i] - min)*(b - a)/(max - min)
+    end
+
+    return new_vec
+end
+
+function trophic_pin(foodweb)
+
+    s = richness(foodweb[])
+
+    yinit = distancetobase.(Ref(foodweb[]), species(foodweb[]), Ref(mean))
+    xinit = [i * 1/s for i in 1:s]
+
+    initialpos = Dict(collect(1:s) .=> Point2.(xinit, yinit))
+    pin = Dict([i => (false, true) for i in 1:s])
+
+    return initialpos, pin
 end
