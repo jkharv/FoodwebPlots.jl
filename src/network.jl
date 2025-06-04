@@ -53,12 +53,18 @@ function Makie.plot!(fp::FoodwebPlot)
     if !(typeof(fp.edge_weights[]) <: Number)
 
         edge_weight_vec = process_edge_weights(fp.edge_weights[], g, conversion_dict)
+    else
+
+        edge_weight_vec = fp.edge_weights[]
     end
 
     node_weight_vec = nothing
     if !(typeof(fp.node_weights[]) <: Number)
 
         node_weight_vec = process_node_weights(fp.node_weights[], g, fp.foodweb)
+    else
+
+        node_weight_vec = fp.node_weights
     end
 
     layout = Stress(;
