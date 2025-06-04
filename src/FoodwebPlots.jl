@@ -5,7 +5,6 @@ using HigherOrderFoodwebs
 using Graphs
 using GraphMakie
 using NetworkLayout
-using DifferentialEquations
 using Makie
 using Colors
 using Statistics
