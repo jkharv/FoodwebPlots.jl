@@ -1,7 +1,7 @@
 module FoodwebPlots
 
 using SpeciesInteractionNetworks
-using HigherOrderFoodwebs
+using AnnotatedHypergraphs
 using Graphs
 using GraphMakie
 using NetworkLayout

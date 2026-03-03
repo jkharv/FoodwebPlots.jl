@@ -3,18 +3,18 @@
     Attributes(
         node_weights = 1.0, # Scalar or Dict(String => Float64)
         edge_weights = 1.0, # Scalar or Dict(Tuple(2, String) => Float64)
-        trophic_levels = false,
+        trophic_levels = true,
         draw_loops = true
     )
 end
 
-function Makie.plot!(fp::FoodwebPlot)
+function Makie.plot!(fp::FoodwebPlot{Tuple{<:SpeciesInteractionNetwork{Unipartite{Symbol}, Binary{Bool}}}})
 
     s = richness(fp.foodweb[]) 
     g = SimpleDiGraph(s)
 
     edge_types = Union{
-        eltype(SpeciesInteractionNetworks.interactions(fp.foodweb[])),
+        Tuple{Symbol, Symbol},
         eltype(edges(g))
     }
 
@@ -22,18 +22,18 @@ function Makie.plot!(fp::FoodwebPlot)
 
     for i in SpeciesInteractionNetworks.interactions(fp.foodweb[])
 
-        if isloop(i) & !fp.draw_loops[]
+        if (i[1] == i[2]) & !fp.draw_loops[]
 
             continue
         else
-            
-            src_index = findfirst(x -> x == object(i), species(fp.foodweb[]))
-            dst_index = findfirst(x -> x == subject(i), species(fp.foodweb[]))
+
+            src_index = findfirst(x -> x == i[2], species(fp.foodweb[]))
+            dst_index = findfirst(x -> x == i[1], species(fp.foodweb[]))
        
             e = Edge(src_index, dst_index)  
 
-            conversion_dict[e] = i
-            conversion_dict[i] = e
+            conversion_dict[e] = (i[1], i[2])
+            conversion_dict[(i[1], i[2])] = e
 
             add_edge!(g, e)
         end
@@ -92,7 +92,7 @@ function process_edge_weights(edge_weights, g, conversion_dict)
         append!(vec, val)
     end
 
-    return rescale(vec, 1, 8.0)
+    return rescale(vec, 0.5, 8.0)
 end
 
 function process_node_weights(node_weights, g, foodweb)
@@ -105,14 +105,15 @@ function process_node_weights(node_weights, g, foodweb)
         sp = spp[n]
        
         push!(vec, node_weights[sp])
+        
     end
-
+    println(vec) 
     return rescale(vec, 10.0, 30.0)
 end
 
 function rescale(vec, a, b)
 
-    new_vec = log.(abs.(deepcopy(vec)))
+    new_vec = log.(abs.(copy(vec)))
 
     min = minimum(new_vec)
     max = maximum(new_vec)
