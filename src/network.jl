@@ -1,44 +1,28 @@
 @recipe(FoodwebPlot, foodweb) do scene
 
     Attributes(
-        node_weights = 1.0, # Scalar or Dict(String => Float64)
-        edge_weights = 1.0, # Scalar or Dict(Tuple(2, String) => Float64)
+        node_weights = 1.0, # Float64 or Dict{Edge, Float64} 
+        edge_weights = 1.0, # Float64 or Dict{Edge, Float64} 
+        edge_colours = :black,
+        node_colours = :black,
         trophic_levels = true,
-        draw_loops = true
+        draw_loops = false 
     )
 end
 
 function Makie.plot!(fp::FoodwebPlot{Tuple{<:SpeciesInteractionNetwork{Unipartite{Symbol}, Binary{Bool}}}})
+    
+    s = richness(fp.foodweb[])
 
-    s = richness(fp.foodweb[]) 
-    g = SimpleDiGraph(s)
+    g, conversion_dict = convert_network_type(fp.foodweb[], fp.draw_loops[])
 
-    edge_types = Union{
-        Tuple{Symbol, Symbol},
-        eltype(edges(g))
-    }
+    edge_weights = process_edge_weights(fp, g, conversion_dict)
+    node_weights = process_node_weights(fp, g)
 
-    conversion_dict = Dict{edge_types, edge_types}()
+    edge_colours = process_edge_colours(fp, g, conversion_dict)
+    node_colours = process_node_colours(fp, g)
 
-    for i in SpeciesInteractionNetworks.interactions(fp.foodweb[])
-
-        if (i[1] == i[2]) & !fp.draw_loops[]
-
-            continue
-        else
-
-            src_index = findfirst(x -> x == i[2], species(fp.foodweb[]))
-            dst_index = findfirst(x -> x == i[1], species(fp.foodweb[]))
-       
-            e = Edge(src_index, dst_index)  
-
-            conversion_dict[e] = (i[1], i[2])
-            conversion_dict[(i[1], i[2])] = e
-
-            add_edge!(g, e)
-        end
-    end
-
+    # Whether to lock the y position to the trophic level of a species.
     initialpos, pin = nothing, nothing
     if fp.trophic_levels[]
 
@@ -49,24 +33,6 @@ function Makie.plot!(fp::FoodwebPlot{Tuple{<:SpeciesInteractionNetwork{Unipartit
         initialpos = [Point2(rand(2)) for i in 1:s]
     end
 
-    edge_weight_vec = nothing
-    if !(typeof(fp.edge_weights[]) <: Number)
-
-        edge_weight_vec = process_edge_weights(fp.edge_weights[], g, conversion_dict)
-    else
-
-        edge_weight_vec = fp.edge_weights[]
-    end
-
-    node_weight_vec = nothing
-    if !(typeof(fp.node_weights[]) <: Number)
-
-        node_weight_vec = process_node_weights(fp.node_weights[], g, fp.foodweb)
-    else
-
-        node_weight_vec = fp.node_weights
-    end
-
     layout = Stress(;
         pin, 
         initialpos
@@ -74,41 +40,145 @@ function Makie.plot!(fp::FoodwebPlot{Tuple{<:SpeciesInteractionNetwork{Unipartit
 
     graphplot!(fp, g; 
         layout = layout,
-        edge_width = edge_weight_vec,
-        arrow_size = 3*edge_weight_vec,
-        node_size = node_weight_vec
+        edge_width = edge_weights,
+        arrow_size = 5*edge_weights,
+        node_size = node_weights,
+        edge_color = edge_colours,
+        node_color = node_colours
     )
 
 end
 
-function process_edge_weights(edge_weights, g, conversion_dict)
+function process_edge_colours(fp, g, conversion_dict)
 
-    vec = Vector{Float32}()
+    if fp.edge_colours[] isa Symbol  
+
+        return [fp.edge_colours[] for e in edges(g)]
+    end
+
+    colours = Vector{Symbol}()
 
     for e in edges(g)
 
-        val = edge_weights[conversion_dict[e]]
+        if haskey(fp.edge_colours[], [conversion_dict[e]])
 
-        append!(vec, val)
+            push!(weights, fp.edge_colours[][conversion_dict[e]])
+        else
+            push!(weights, :black)
+        end
     end
 
-    return rescale(vec, 0.5, 8.0)
+    return colours 
 end
 
-function process_node_weights(node_weights, g, foodweb)
+function process_edge_weights(fp, g, conversion_dict)
+
+    if fp.edge_weights[] isa Number 
+
+        return [fp.edge_weights[] for e in edges(g)]
+    end
+
+    weights = Vector{Float32}()
+    mean_weight = (mean ∘ values)(fp.edge_weights[])
+
+    for e in edges(g)
+
+        if haskey(fp.edge_weights[], [conversion_dict[e]])
+
+            push!(weights, fp.edge_weights[][conversion_dict[e]])
+        else
+            push!(weights, mean_weight)
+        end
+    end
+
+    return rescale(weights, 0.2, 5.0)
+end
+
+function process_node_weights(fp, g)
+
+    if fp.node_weights[] isa Number 
+
+        return [fp.node_weights[] for v in vertices(g)]
+    end
 
     vec = Vector{Float32}()
-    spp = species(foodweb[])
+    mean_weight = (mean ∘ values)(fp.node_weights[])
+    spp = species(fp.foodweb[])
 
     for n in vertices(g)
               
         sp = spp[n]
-       
-        push!(vec, node_weights[sp])
         
+        if haskey(fp.node_weights[], sp) 
+
+            push!(vec, fp.node_weights[][sp])
+        else
+
+            push!(vec, mean_weight)
+        end
     end
-    println(vec) 
-    return rescale(vec, 10.0, 30.0)
+
+    return rescale(vec, 5.0, 30.0)
+end
+
+function process_node_colours(fp, g)
+
+    if fp.node_colours[] isa Symbol
+
+        return [fp.node_colours[] for v in vertices(g)]
+    end
+
+    vec = Vector{Symbol}()
+    spp = species(fp.foodweb[])
+
+    for n in vertices(g)
+              
+        sp = spp[n]
+        
+        if haskey(fp.node_colours[], sp) 
+
+            push!(vec, fp.node_colours[][sp])
+        else
+
+            push!(vec, :black)
+        end
+    end
+
+    return vec
+end
+
+function convert_network_type(web::SpeciesInteractionNetwork, loops::Bool)
+
+    s = richness(web)
+    g = SimpleDiGraph(s)
+  
+    edge_types = Union{
+        eltype(SpeciesInteractionNetworks.interactions(web)),
+        eltype(edges(g))
+    }
+
+    conversion_dict = Dict{edge_types, edge_types}()
+
+    for i in SpeciesInteractionNetworks.interactions(web)
+
+        if (i[1] == i[2]) & !loops
+
+            continue
+        else
+
+            src_index = findfirst(x -> x == i[2], species(web))
+            dst_index = findfirst(x -> x == i[1], species(web))
+       
+            e = Edge(src_index, dst_index)  
+
+            conversion_dict[e] = i
+            conversion_dict[i] = e
+
+            add_edge!(g, e)
+        end
+    end   
+
+    return (g, conversion_dict)
 end
 
 function rescale(vec, a, b)
