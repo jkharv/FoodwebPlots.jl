@@ -10,6 +10,28 @@
     )
 end
 
+function Makie.plot!(
+    fp::FoodwebPlot{Tuple{<:SpeciesInteractionNetwork{Unipartite{Symbol}, Quantitative{Float64}}}})
+  
+    intxs = SpeciesInteractionNetworks.interactions(fp.foodweb[])   
+    weights = Dict(intxs .=> [last(x) for x in intxs])
+
+    println(weights)
+
+    x = render(Binary, fp.foodweb[])
+
+    println(typeof(x))
+
+    foodwebplot(x,
+        node_weights = fp.node_weights[], 
+        edge_weights = weights,
+        edge_colours = fp.edge_colours[],
+        node_colours = fp.node_colours[],
+        trophic_levels = fp.trophic_levels[],
+        draw_loops = fp.draw_loops[]
+    )    
+end
+ 
 function Makie.plot!(fp::FoodwebPlot{Tuple{<:SpeciesInteractionNetwork{Unipartite{Symbol}, Binary{Bool}}}})
     
     s = richness(fp.foodweb[])
@@ -200,8 +222,16 @@ function trophic_pin(foodweb)
 
     s = richness(foodweb[])
 
-    yinit = distancetobase.(Ref(foodweb[]), species(foodweb[]), Ref(mean))
+    yinit = distancetobase.(Ref(foodweb[]), species(foodweb[]), Ref(mean)) .+ 1.0
     xinit = [i * 1/s for i in 1:s]
+
+    for (i, sp) in (enumerate ∘ species)(foodweb[])
+
+        if generality(foodweb[], sp) == 0        
+
+            yinit[i] = 1
+        end
+    end
 
     initialpos = Dict(collect(1:s) .=> Point2.(xinit, yinit))
     pin = Dict([i => (false, true) for i in 1:s])
