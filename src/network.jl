@@ -222,7 +222,13 @@ function trophic_pin(foodweb)
 
     s = richness(foodweb[])
 
-    yinit = distancetobase.(Ref(foodweb[]), species(foodweb[]), Ref(mean)) .+ 1.0
+    tls = trophic_levels(foodweb[]) 
+    yinit = []
+
+    for sp in species(foodweb[])
+        push!(yinit, tls[sp])
+    end
+
     xinit = [i * 1/s for i in 1:s]
 
     for (i, sp) in (enumerate ∘ species)(foodweb[])
