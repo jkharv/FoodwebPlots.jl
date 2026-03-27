@@ -18,3 +18,4 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [sources]
 AnnotatedHypergraphs = {rev = "main", url = "https://github.com/jkharv/AnnotatedHypergraphs.jl.git"}
+HigherOrderFoodwebs  = {rev = "main", url = "https://github.com/jkharv/HigherOrderFoodwebs.jl.git"}
